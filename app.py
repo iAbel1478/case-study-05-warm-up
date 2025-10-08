@@ -2,15 +2,19 @@ import os, json, subprocess, shlex, pathlib
 from flask import Flask, render_template, request, jsonify
 import requests
 
+
 app = Flask(__name__)
+
 
 # ----- TinyLlama via Ollama settings (Stage 2) -----
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "tinyllama")
 
+
 @app.get("/")
 def home():
     return render_template("index.html")
+
 
 # Stage 1: echo
 @app.post("/api/echo")
@@ -27,8 +31,10 @@ def chat():
     if not prompt:
         return jsonify({"reply": "(empty prompt)"}), 200
 
+
     system_prefix = "You are UVA SDS GPT. Answer concisely.\n"
     full_prompt = system_prefix + prompt
+
 
     try:
         r = requests.post(
@@ -54,6 +60,13 @@ def chat():
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 
+
+# Health check endpoint (added)
+@app.get("/api/health")
+def health_check():
+    return jsonify({"status": "ok"}), 200
+
+
 # ----- Stage 3: smolagents safe shell tool -----
 try:
     from smolagents import Tool, CodeAgent, LiteLLMModel
@@ -62,14 +75,17 @@ except Exception:
     CodeAgent = None
     LiteLLMModel = None
 
+
 SANDBOX_DIR = pathlib.Path(__file__).parent / "sandbox"
 SAFE_CMDS = {"pwd", "ls", "cat", "head", "tail", "echo"}
+
 
 def _in_sandbox(path: str) -> pathlib.Path:
     p = (SANDBOX_DIR / path).resolve()
     if not str(p).startswith(str(SANDBOX_DIR.resolve())):
         raise ValueError("Path escapes sandbox")
     return p
+
 
 def _secure_parse(cmd: str):
     banned = ["|", "&&", "||", ";", "`", "$(", ">", "<"]
@@ -92,6 +108,7 @@ def _secure_parse(cmd: str):
             mapped.append(tok)
     return mapped
 
+
 if Tool is not None:
     class SafeShellTool(Tool):
         name = "safe_shell"
@@ -99,6 +116,7 @@ if Tool is not None:
                        "Allowed: pwd, ls, cat, head, tail, echo. Relative paths only.")
         inputs = {"cmd": {"type": "string", "description": "Shell command"}}
         output_type = "string"
+
 
         def __call__(self, cmd: str) -> str:
             try:
@@ -113,6 +131,7 @@ if Tool is not None:
             except Exception as e:
                 return f"error: {e}"
 
+
     def _build_agent():
         model_id = os.getenv("SMOL_MODEL_ID", f"ollama_chat/{OLLAMA_MODEL}")
         base_url = os.getenv("SMOL_BASE_URL", OLLAMA_URL)
@@ -126,7 +145,9 @@ else:
     def _build_agent():
         return None
 
+
 _AGENT = None
+
 
 @app.post("/api/agent")
 def agent_endpoint():
@@ -144,6 +165,7 @@ def agent_endpoint():
         return jsonify({"reply": str(result)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
