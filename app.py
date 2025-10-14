@@ -30,6 +30,16 @@ def chat():
     )
     return jsonify(response.json())
 
+@app.get("/api/health")
+def health():
+    # Check if Ollama/TinyLlama is reachable
+    try:
+        r = requests.get(f"{OLLAMA_URL}/api/models", timeout=5)
+        models = r.json() if r.status_code == 200 else []
+        return jsonify({"status": "ok", "models": models}), 200
+    except Exception as e:
+        return jsonify({"status": "degraded", "error": str(e)}), 503
+
 # Stage 2: proxy to Ollama
 @app.post("/api/chat")
 def chat():
