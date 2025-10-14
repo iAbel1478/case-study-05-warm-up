@@ -19,6 +19,17 @@ def echo():
     text = (data.get("text") or "").strip()
     return jsonify({"reply": (text + "?") if text else "?"}), 200
 
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    data = request.get_json()
+    prompt = data.get("text", "")
+    
+    response = requests.post(
+        f"{OLLAMA_URL}/api/generate",
+        json={"model": "tinyllama", "prompt": prompt}
+    )
+    return jsonify(response.json())
+
 # Stage 2: proxy to Ollama
 @app.post("/api/chat")
 def chat():
