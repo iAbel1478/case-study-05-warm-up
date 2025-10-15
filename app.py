@@ -19,20 +19,9 @@ def echo():
     text = (data.get("text") or "").strip()
     return jsonify({"reply": (text + "?") if text else "?"}), 200
 
-@app.route("/api/chat", methods=["POST"])
-def chat():
-    data = request.get_json()
-    prompt = data.get("text", "")
-    
-    response = requests.post(
-        f"{OLLAMA_URL}/api/generate",
-        json={"model": "tinyllama", "prompt": prompt}
-    )
-    return jsonify(response.json())
-
+# Health endpoint
 @app.get("/api/health")
 def health():
-    # Check if Ollama/TinyLlama is reachable
     try:
         r = requests.get(f"{OLLAMA_URL}/api/models", timeout=5)
         models = r.json() if r.status_code == 200 else []
@@ -40,7 +29,7 @@ def health():
     except Exception as e:
         return jsonify({"status": "degraded", "error": str(e)}), 503
 
-# Stage 2: proxy to Ollama
+# Stage 2: proxy to Ollama (merged chat endpoint)
 @app.post("/api/chat")
 def chat():
     data = request.get_json(silent=True) or {}
@@ -57,12 +46,14 @@ def chat():
             json={"model": OLLAMA_MODEL, "prompt": full_prompt},
             timeout=60,
         )
-        # Try single JSON first
+
+        text = ""
         try:
+            # Try single JSON response first
             js = r.json()
             text = js.get("response") or ""
         except ValueError:
-            text = ""
+            # If streaming JSON, combine the chunks
             for line in r.iter_lines(decode_unicode=True):
                 if not line:
                     continue
@@ -71,6 +62,7 @@ def chat():
                     text += piece
                 except Exception:
                     pass
+
         return jsonify({"reply": (text.strip() or "(no response)")}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 502
